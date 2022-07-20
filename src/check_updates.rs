@@ -164,6 +164,60 @@ pub async fn check_updates(cache_and_http: &Arc<CacheAndHttp>) {
         }
 
         if let Some(article) = updated {
+            let cache = &cache_and_http.cache;
+            let http = &cache_and_http.http;
+
+            let guilds = cache.guilds();
+
+            for guild in guilds {
+                let channels_raw: [u64; 2] = {
+                    let channels_lock = CHANNELS.lock().await;
+                    match channels_lock.get(&guild) {
+                        Some(channels) => channels.to_owned(),
+                        None => {
+                            eprintln!("No channels found for guild {}", guild);
+                            continue;
+                        }
+                    }
+                };
+                let channel_map = match cache.guild_channels(guild) {
+                    Some(channel_map) => channel_map,
+                    None => {
+                        eprintln!("Failed to get references to channels for guild {}", guild);
+                        continue;
+                    }
+                };
+                let updates_channel = match channel_map.get(&ChannelId::from(channels_raw[1])) {
+                    Some(channel) => channel,
+                    None => {
+                        eprintln!(
+                            "No updates channel found for guild {} (should be under ID {})",
+                            guild, channels_raw[1]
+                        );
+                        continue;
+                    }
+                };
+
+                match updates_channel
+                    .send_message(http, |m| {
+                        m.embed(|e| {
+                            e.title(&article.title);
+                            e.author(|a| a.name(&article.author));
+                            e.description(format!("A new update is available! Please see [here]({}) for more information.", article.url));
+                            e.timestamp(article.date.to_rfc3339());
+                            e.color(rand::thread_rng().gen_range(0x000000..=0xffffff));
+                            e
+                        })
+                    })
+                    .await
+                {
+                    Ok(_) => (),
+                    Err(e) => {
+                        eprintln!("Failed to send message to updates channel for guild {} with error {}", guild, e);
+                    }
+                };
+            }
+
             let players = get_users_playing(cache_and_http).await;
             for (guild_id, guild_players) in players.into_iter() {
                 let channels_raw: [u64; 2] = {
@@ -176,10 +230,6 @@ pub async fn check_updates(cache_and_http: &Arc<CacheAndHttp>) {
                         }
                     }
                 };
-
-                let cache = &cache_and_http.cache;
-                let http = &cache_and_http.http;
-
                 let channel_map = match cache.guild_channels(guild_id) {
                     Some(channel_map) => channel_map,
                     None => {
@@ -190,22 +240,13 @@ pub async fn check_updates(cache_and_http: &Arc<CacheAndHttp>) {
                         continue;
                     }
                 };
+
                 let ping_channel = match channel_map.get(&ChannelId::from(channels_raw[0])) {
                     Some(channel) => channel,
                     None => {
                         eprintln!(
                             "No ping channel found for guild {} (should be under ID {})",
                             guild_id, channels_raw[0]
-                        );
-                        continue;
-                    }
-                };
-                let updates_channel = match channel_map.get(&ChannelId::from(channels_raw[1])) {
-                    Some(channel) => channel,
-                    None => {
-                        eprintln!(
-                            "No updates channel found for guild {} (should be under ID {})",
-                            guild_id, channels_raw[1]
                         );
                         continue;
                     }
@@ -265,25 +306,6 @@ pub async fn check_updates(cache_and_http: &Arc<CacheAndHttp>) {
                         };
                     }
                 }
-
-                match updates_channel
-                    .send_message(http, |m| {
-                        m.embed(|e| {
-                            e.title(&article.title);
-                            e.author(|a| a.name(&article.author));
-                            e.description(format!("A new update is available! Please see [here]({}) for more information.", article.url));
-                            e.timestamp(article.date.to_rfc3339());
-                            e.color(rand::thread_rng().gen_range(0x000000..=0xffffff));
-                            e
-                        })
-                    })
-                    .await
-                {
-                    Ok(_) => (),
-                    Err(e) => {
-                        eprintln!("Failed to send message to updates channel: {}", e);
-                    }
-                };
             }
         }
 
