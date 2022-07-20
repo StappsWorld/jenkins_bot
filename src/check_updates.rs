@@ -258,9 +258,7 @@ pub async fn check_updates(cache_and_http: &Arc<CacheAndHttp>) {
                             guild_players[guild_players.len() - 1].id
                         ));
                         match ping_channel.say(http, players_string).await {
-                            Ok(_) => {
-                                println!("Sent message to ping channel for guild {}", guild_id);
-                            }
+                            Ok(_) => (),
                             Err(e) => {
                                 eprintln!("Failed to send message to ping channel: {}", e);
                             }
