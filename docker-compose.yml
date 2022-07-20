@@ -1,0 +1,11 @@
+version: '3.7'
+
+services:
+  jenkins_bot:
+    container_name: jenkins_bot
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      DISCORD_TOKEN: TOKEN_HERE
